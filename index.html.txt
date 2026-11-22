@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>불꽃놀이</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: radial-gradient(ellipse at bottom, #121a45 0%, #070a1f 55%, #02030a 100%);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  h1 {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: calc(env(safe-area-inset-top, 0px) + 6vh);
+    margin: 0;
+    text-align: center;
+    font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    font-size: clamp(36px, 10vw, 84px);
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #fff6d6;
+    text-shadow: 0 0 12px #ffcf5a, 0 0 32px #ff9a3c, 0 0 60px #ff5e3a;
+    pointer-events: none;
+    z-index: 2;
+  }
+  p {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 5vh);
+    margin: 0;
+    text-align: center;
+    font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    font-size: clamp(16px, 4vw, 24px);
+    color: rgba(255, 255, 255, 0.7);
+    pointer-events: none;
+    z-index: 2;
+    animation: blink 2s ease-in-out infinite;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+  <canvas id="stars"></canvas>
+  <canvas id="fx"></canvas>
+  <h1>불꽃놀이</h1>
+  <p>화면을 톡 눌러 보세요</p>
+
+<script>
+(function () {
+  var starsCv = document.getElementById('stars');
+  var fxCv = document.getElementById('fx');
+  var sctx = starsCv.getContext('2d');
+  var ctx = fxCv.getContext('2d');
+  var W = 0, H = 0, dpr = 1;
+  var particles = [];
+  var MAX_PARTICLES = 2500;
+
+  function drawStars() {
+    sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    sctx.clearRect(0, 0, W, H);
+    var count = Math.floor((W * H) / 5000);
+    for (var i = 0; i < count; i++) {
+      var x = Math.random() * W;
+      var y = Math.random() * H;
+      var r = Math.random() * 1.2 + 0.2;
+      sctx.globalAlpha = Math.random() * 0.7 + 0.2;
+      sctx.fillStyle = '#ffffff';
+      sctx.beginPath();
+      sctx.arc(x, y, r, 0, Math.PI * 2);
+      sctx.fill();
+    }
+    sctx.globalAlpha = 1;
+  }
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    [starsCv, fxCv].forEach(function (c) {
+      c.width = Math.floor(W * dpr);
+      c.height = Math.floor(H * dpr);
+    });
+    drawStars();
+  }
+  window.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', function () { setTimeout(resize, 200); });
+  resize();
+
+  function explode(x, y) {
+    var baseHue = Math.random() * 360;
+    var multi = Math.random() < 0.4;
+    var shape = Math.random() < 0.3 ? 'ring' : 'sphere';
+    var count = 80 + Math.floor(Math.random() * 40);
+    var power = Math.min(W, H) / 90 + 2.5;
+
+    for (var i = 0; i < count; i++) {
+      var angle = (Math.PI * 2 * i) / count + Math.random() * 0.1;
+      var speed = shape === 'ring'
+        ? power * (0.95 + Math.random() * 0.1)
+        : power * Math.sqrt(Math.random()) * (0.4 + Math.random() * 0.8);
+      var hue = multi ? (baseHue + Math.random() * 120) % 360 : baseHue + (Math.random() * 30 - 15);
+      particles.push({
+        x: x,
+        y: y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 1,
+        decay: 0.008 + Math.random() * 0.012,
+        hue: hue,
+        size: 1.2 + Math.random() * 1.6,
+        spark: Math.random() < 0.25
+      });
+    }
+    if (particles.length > MAX_PARTICLES) {
+      particles.splice(0, particles.length - MAX_PARTICLES);
+    }
+  }
+
+  function loop() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // 잔상이 서서히 사라지도록 살짝씩 지워 줍니다
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.globalCompositeOperation = 'lighter';
+    for (var i = particles.length - 1; i >= 0; i--) {
+      var p = particles[i];
+      p.vx *= 0.985;
+      p.vy *= 0.985;
+      p.vy += 0.045;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life -= p.decay;
+
+      if (p.life <= 0) {
+        particles.splice(i, 1);
+        continue;
+      }
+
+      var alpha = p.spark ? p.life * (0.5 + Math.random() * 0.5) : p.life;
+      ctx.beginPath();
+      ctx.fillStyle = 'hsla(' + p.hue + ', 100%, ' + (55 + p.life * 20) + '%, ' + alpha + ')';
+      ctx.arc(p.x, p.y, p.size * (0.5 + p.life * 0.6), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // 마우스, 터치, 펜 모두 한 번에 처리
+  window.addEventListener('pointerdown', function (e) {
+    explode(e.clientX, e.clientY);
+  });
+
+  // 처음 열었을 때 화면이 심심하지 않게 한 번 터뜨려 줍니다
+  setTimeout(function () { explode(W / 2, H * 0.45); }, 400);
+})();
+</script>
+</body>
+</html>

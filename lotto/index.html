@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>불꽃놀이</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #02030a;
+  }
+  body {
+    background: radial-gradient(ellipse at 50% 110%, #232a66 0%, #0b0f2c 45%, #02030a 100%);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  h1 {
+    position: fixed;
+    top: 7%;
+    left: 0;
+    right: 0;
+    margin: 0;
+    text-align: center;
+    color: #fff;
+    font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    font-size: clamp(2.2rem, 10vw, 4.8rem);
+    letter-spacing: 0.15em;
+    text-shadow: 0 0 10px rgba(255, 225, 160, 0.9), 0 0 30px rgba(255, 150, 80, 0.6), 0 0 60px rgba(255, 90, 60, 0.35);
+    pointer-events: none;
+  }
+  .hint {
+    position: fixed;
+    bottom: 6%;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.65);
+    font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    font-size: clamp(0.9rem, 3.5vw, 1.2rem);
+    pointer-events: none;
+    transition: opacity 1.2s;
+  }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<canvas id="sky"></canvas>
+<h1>불꽃놀이</h1>
+<div class="hint" id="hint">화면을 터치하거나 클릭해 보세요</div>
+
+<script>
+(function () {
+  var sky = document.getElementById('sky');
+  var ctx = sky.getContext('2d');
+  var starCanvas = document.getElementById('stars');
+  var sctx = starCanvas.getContext('2d');
+  var hint = document.getElementById('hint');
+
+  var w = 0, h = 0, dpr = 1;
+  var particles = [];
+  var effects = [];
+  var rockets = [];
+  var lastAction = Date.now();
+  var MAX_PARTICLES = 2600;
+
+  function rand(a, b) { return Math.random() * (b - a) + a; }
+  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  function drawStars() {
+    sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    sctx.clearRect(0, 0, w, h);
+    var n = Math.floor((w * h) / 5000);
+    for (var i = 0; i < n; i++) {
+      var r = Math.random() * 1.2 + 0.2;
+      sctx.fillStyle = 'rgba(255,255,255,' + rand(0.2, 0.9) + ')';
+      sctx.beginPath();
+      sctx.arc(Math.random() * w, Math.random() * h * 0.85, r, 0, Math.PI * 2);
+      sctx.fill();
+    }
+  }
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    w = window.innerWidth;
+    h = window.innerHeight;
+    [sky, starCanvas].forEach(function (c) {
+      c.width = Math.floor(w * dpr);
+      c.height = Math.floor(h * dpr);
+    });
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawStars();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function addParticle(x, y, vx, vy, o) {
+    if (particles.length > MAX_PARTICLES) return;
+    particles.push({
+      x: x, y: y, px: x, py: y,
+      vx: vx, vy: vy,
+      size: o.size || rand(1.2, 2.4),
+      hue: o.hue,
+      sat: o.sat === undefined ? 100 : o.sat,
+      light: o.light || 60,
+      life: 1,
+      decay: o.decay || rand(0.009, 0.015),
+      grav: o.grav === undefined ? 0.05 : o.grav,
+      drag: o.drag || 0.975,
+      twinkle: !!o.twinkle,
+      crackle: !!o.crackle
+    });
+  }
+
+  // 모양별 불꽃 만들기
+  function makeSphere(x, y, hue, big) {
+    var n = big ? 150 : 110;
+    var multi = Math.random() < 0.4;
+    for (var i = 0; i < n; i++) {
+      var a = Math.random() * Math.PI * 2;
+      var s = rand(0.6, 1) * (big ? 7.5 : 6.2);
+      addParticle(x, y, Math.cos(a) * s, Math.sin(a) * s, {
+        hue: multi ? rand(0, 360) : hue + rand(-15, 15),
+        twinkle: true, crackle: Math.random() < 0.15
+      });
+    }
+  }
+
+  function makeRing(x, y, hue) {
+    var n = 70;
+    var tilt = rand(0.45, 1);
+    var rot = rand(0, Math.PI);
+    for (var i = 0; i < n; i++) {
+      var a = (i / n) * Math.PI * 2;
+      var vx = Math.cos(a) * 6.2;
+      var vy = Math.sin(a) * 6.2 * tilt;
+      var c = Math.cos(rot), s = Math.sin(rot);
+      addParticle(x, y, vx * c - vy * s, vx * s + vy * c, {
+        hue: hue, drag: 0.962, grav: 0.03, twinkle: true
+      });
+    }
+    for (var j = 0; j < 40; j++) {
+      var b = Math.random() * Math.PI * 2;
+      var sp = rand(0.5, 2.5);
+      addParticle(x, y, Math.cos(b) * sp, Math.sin(b) * sp, { hue: hue + 40, sat: 90, light: 75 });
+    }
+  }
+
+  function makeHeart(x, y, hue) {
+    var n = 90;
+    for (var i = 0; i < n; i++) {
+      var t = (i / n) * Math.PI * 2;
+      var hx = 16 * Math.pow(Math.sin(t), 3);
+      var hy = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+      addParticle(x, y, hx * 0.38, hy * 0.38, {
+        hue: pick([340, 350, 330, 0]), drag: 0.955, grav: 0.025, size: 2.2, twinkle: true
+      });
+    }
+  }
+
+  function makeStar(x, y, hue) {
+    var n = 100;
+    var rot = rand(0, Math.PI * 2);
+    for (var i = 0; i < n; i++) {
+      var t = (i / n) * Math.PI * 2;
+      var r = 0.35 + 0.65 * Math.abs(Math.cos(2.5 * t));
+      var s = r * 7;
+      addParticle(x, y, Math.cos(t + rot) * s, Math.sin(t + rot) * s, {
+        hue: pick([45, 50, 55]), drag: 0.955, grav: 0.03, size: 2.2, twinkle: true
+      });
+    }
+  }
+
+  function makeWillow(x, y) {
+    var n = 120;
+    for (var i = 0; i < n; i++) {
+      var a = Math.random() * Math.PI * 2;
+      var s = rand(1.5, 6);
+      addParticle(x, y, Math.cos(a) * s, Math.sin(a) * s, {
+        hue: rand(35, 50), light: 65, decay: rand(0.004, 0.007),
+        grav: 0.07, drag: 0.968, size: 1.6, twinkle: true
+      });
+    }
+  }
+
+  function makeDouble(x, y, hue) {
+    for (var i = 0; i < 100; i++) {
+      var a = Math.random() * Math.PI * 2;
+      var s = rand(0.9, 1) * 7;
+      addParticle(x, y, Math.cos(a) * s, Math.sin(a) * s, { hue: hue, twinkle: true });
+    }
+    for (var j = 0; j < 60; j++) {
+      var b = (j / 60) * Math.PI * 2;
+      addParticle(x, y, Math.cos(b) * 3.4, Math.sin(b) * 3.4, {
+        hue: (hue + 150) % 360, drag: 0.96, size: 2
+      });
+    }
+  }
+
+  function burst(x, y, forceType) {
+    var hue = rand(0, 360);
+    var type = forceType || pick(['sphere', 'sphere', 'ring', 'heart', 'star', 'willow', 'double']);
+    switch (type) {
+      case 'sphere': makeSphere(x, y, hue, Math.random() < 0.4); break;
+      case 'ring': makeRing(x, y, hue); break;
+      case 'heart': makeHeart(x, y, hue); break;
+      case 'star': makeStar(x, y, hue); break;
+      case 'willow': makeWillow(x, y); break;
+      case 'double': makeDouble(x, y, hue); break;
+    }
+    effects.push({ type: 'flash', x: x, y: y, hue: hue, life: 1 });
+    effects.push({ type: 'wave', x: x, y: y, hue: hue, r: 4, life: 1 });
+  }
+
+  function launchRocket() {
+    var x = rand(w * 0.12, w * 0.88);
+    rockets.push({
+      x: x, y: h + 10,
+      vx: rand(-0.6, 0.6),
+      vy: -rand(h * 0.016, h * 0.022),
+      targetY: rand(h * 0.15, h * 0.5)
+    });
+  }
+
+  function onPointer(e) {
+    e.preventDefault();
+    lastAction = Date.now();
+    hint.style.opacity = 0;
+    var x = e.clientX, y = e.clientY;
+    burst(x, y);
+    if (Math.random() < 0.4) {
+      setTimeout(function () { burst(x + rand(-40, 40), y + rand(-40, 40), 'sphere'); }, 220);
+    }
+  }
+  sky.addEventListener('pointerdown', onPointer);
+
+  function loop() {
+    // 잔상 (천천히 지워서 꼬리가 길게 남음)
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.16)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = 'lighter';
+
+    // 한가할 때 저절로 불꽃 발사
+    if (Date.now() - lastAction > 2500 && Math.random() < 0.018 && rockets.length < 3) {
+      launchRocket();
+    }
+
+    // 로켓
+    for (var r = rockets.length - 1; r >= 0; r--) {
+      var k = rockets[r];
+      k.x += k.vx;
+      k.y += k.vy;
+      k.vy *= 0.985;
+      addParticle(k.x, k.y, rand(-0.3, 0.3), rand(0.4, 1.2), {
+        hue: 40, light: 75, size: 1.4, decay: 0.05, grav: 0.02
+      });
+      if (k.y <= k.targetY || k.vy > -2) {
+        burst(k.x, k.y);
+        rockets.splice(r, 1);
+      }
+    }
+
+    // 번쩍임, 충격파
+    for (var e = effects.length - 1; e >= 0; e--) {
+      var f = effects[e];
+      if (f.type === 'flash') {
+        var rad = 160 * f.life + 20;
+        var g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, rad);
+        g.addColorStop(0, 'hsla(' + f.hue + ',100%,85%,' + (0.55 * f.life) + ')');
+        g.addColorStop(1, 'hsla(' + f.hue + ',100%,60%,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, rad, 0, Math.PI * 2);
+        ctx.fill();
+        f.life -= 0.09;
+      } else {
+        f.r += 7 * f.life + 2;
+        ctx.strokeStyle = 'hsla(' + f.hue + ',100%,80%,' + (0.5 * f.life) + ')';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+        ctx.stroke();
+        f.life -= 0.05;
+      }
+      if (f.life <= 0) effects.splice(e, 1);
+    }
+
+    // 불꽃 알갱이
+    ctx.lineCap = 'round';
+    for (var i = particles.length - 1; i >= 0; i--) {
+      var p = particles[i];
+      p.px = p.x;
+      p.py = p.y;
+      p.vx *= p.drag;
+      p.vy *= p.drag;
+      p.vy += p.grav;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life -= p.decay;
+
+      if (p.life <= 0) {
+        if (p.crackle) {
+          for (var c = 0; c < 4; c++) {
+            addParticle(p.x, p.y, rand(-2, 2), rand(-2, 2), {
+              hue: 55, sat: 30, light: 90, size: 1.2, decay: 0.07, grav: 0.03
+            });
+          }
+        }
+        particles.splice(i, 1);
+        continue;
+      }
+
+      var alpha = Math.min(1, p.life * 1.4);
+      if (p.twinkle && p.life < 0.55 && Math.random() < 0.4) alpha *= 0.25;
+      var light = p.life > 0.85 ? 90 : p.light;
+
+      ctx.strokeStyle = 'hsla(' + p.hue + ',' + p.sat + '%,' + light + '%,' + alpha + ')';
+      ctx.lineWidth = p.size;
+      ctx.beginPath();
+      ctx.moveTo(p.px, p.py);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    }
+
+    requestAnimationFrame(loop);
+  }
+  loop();
+
+  // 시작할 때 한 번 터뜨려서 보여주기
+  setTimeout(function () { launchRocket(); }, 600);
+})();
+</script>
+</body>
+</html>

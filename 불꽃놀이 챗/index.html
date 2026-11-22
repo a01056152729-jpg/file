@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0">
+
+<title>불꽃놀이</title>
+
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    background: radial-gradient(
+      ellipse at bottom,
+      #172448 0%,
+      #080c20 55%,
+      #02030b 100%
+    );
+
+    color: white;
+    font-family: Arial, sans-serif;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: crosshair;
+  }
+
+  canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .title-box {
+    position: absolute;
+    top: 9%;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    pointer-events: none;
+    width: 100%;
+    padding: 0 15px;
+  }
+
+  h1 {
+    font-size: clamp(42px, 9vw, 85px);
+    font-weight: 800;
+    letter-spacing: 5px;
+
+    background: linear-gradient(
+      90deg,
+      #ff5fa2,
+      #ffd76a,
+      #66f5ff,
+      #b58aff,
+      #ff5fa2
+    );
+
+    background-size: 300%;
+
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+
+    animation: titleColor 6s linear infinite;
+
+    filter: drop-shadow(0 0 15px #ff5fa266);
+  }
+
+  .subtitle {
+    margin-top: 18px;
+    font-size: clamp(15px, 3.5vw, 22px);
+    color: #d7ddf5;
+    line-height: 1.7;
+  }
+
+  .bottom-text {
+    position: absolute;
+    bottom: 7%;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    color: #c4cce9;
+    font-size: clamp(13px, 3vw, 18px);
+    pointer-events: none;
+    animation: blink 2s infinite alternate;
+  }
+
+  @keyframes titleColor {
+    0% {
+      background-position: 0%;
+    }
+    100% {
+      background-position: 300%;
+    }
+  }
+
+  @keyframes blink {
+    from { opacity: 0.4; }
+    to { opacity: 1; }
+  }
+</style>
+</head>
+
+<body>
+
+<canvas id="fireworks"></canvas>
+
+<div class="title-box">
+  <h1>🎆 불꽃놀이 🎆</h1>
+  <p class="subtitle">
+    밤하늘에 나만의 불꽃을 피워보세요!
+  </p>
+</div>
+
+<div class="bottom-text">
+  ✨ 화면 아무 곳이나 클릭하거나 터치하세요 ✨
+</div>
+
+<script>
+const canvas = document.getElementById("fireworks");
+const ctx = canvas.getContext("2d");
+
+let particles = [];
+let stars = [];
+
+let width = 0;
+let height = 0;
+let pixelRatio = 1;
+
+const colors = [
+  "#ff477e",
+  "#ffdd57",
+  "#4df5ff",
+  "#b388ff",
+  "#68ff9a",
+  "#ff944d",
+  "#ffffff",
+  "#ff68eb"
+];
+
+// 화면 크기 설정
+function resizeCanvas() {
+  width = window.innerWidth;
+  height = window.innerHeight;
+
+  pixelRatio = Math.min(
+    window.devicePixelRatio || 1,
+    2
+  );
+
+  canvas.width = Math.round(width * pixelRatio);
+  canvas.height = Math.round(height * pixelRatio);
+
+  ctx.setTransform(
+    pixelRatio, 0,
+    0, pixelRatio,
+    0, 0
+  );
+
+  createStars();
+}
+
+// 밤하늘 별 만들기
+function createStars() {
+  stars = [];
+
+  const count = Math.min(
+    160,
+    Math.floor(width * height / 6500)
+  );
+
+  for (let i = 0; i < count; i++) {
+    stars.push({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      radius: Math.random() * 1.3 + 0.3,
+      alpha: Math.random() * 0.7 + 0.2,
+      phase: Math.random() * Math.PI * 2
+    });
+  }
+}
+
+// 불꽃 입자
+class Particle {
+  constructor(x, y, color, angle, speed) {
+    this.x = x;
+    this.y = y;
+
+    this.vx = Math.cos(angle) * speed;
+    this.vy = Math.sin(angle) * speed;
+
+    this.color = color;
+
+    this.life = 1;
+    this.decay = Math.random() * 0.012 + 0.009;
+
+    this.radius = Math.random() * 2.4 + 1.2;
+
+    this.gravity = 0.045;
+    this.friction = 0.985;
+
+    this.trail = [];
+  }
+
+  update() {
+    this.trail.push({
+      x: this.x,
+      y: this.y
+    });
+
+    if (this.trail.length > 5) {
+      this.trail.shift();
+    }
+
+    this.vx *= this.friction;
+    this.vy *= this.friction;
+
+    this.vy += this.gravity;
+
+    this.x += this.vx;
+    this.y += this.vy;
+
+    this.life -= this.decay;
+  }
+
+  draw() {
+    if (this.life <= 0) return;
+
+    ctx.save();
+
+    // 불꽃 잔상
+    if (this.trail.length > 1) {
+      ctx.beginPath();
+
+      ctx.moveTo(
+        this.trail[0].x,
+        this.trail[0].y
+      );
+
+      for (let i = 1; i < this.trail.length; i++) {
+        ctx.lineTo(
+          this.trail[i].x,
+          this.trail[i].y
+        );
+      }
+
+      ctx.strokeStyle = this.color;
+      ctx.globalAlpha = this.life * 0.35;
+      ctx.lineWidth = this.radius * 0.8;
+      ctx.stroke();
+    }
+
+    // 빛나는 불꽃
+    ctx.globalAlpha = Math.max(0, this.life);
+    ctx.shadowBlur = 14;
+    ctx.shadowColor = this.color;
+
+    ctx.fillStyle = this.color;
+
+    ctx.beginPath();
+    ctx.arc(
+      this.x,
+      this.y,
+      this.radius,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+
+    ctx.restore();
+  }
+}
+
+// 클릭 위치에서 폭죽 터뜨리기
+function explode(x, y) {
+  const color =
+    colors[Math.floor(Math.random() * colors.length)];
+
+  const secondColor =
+    colors[Math.floor(Math.random() * colors.length)];
+
+  const count = width < 600 ? 85 : 140;
+
+  for (let i = 0; i < count; i++) {
+    const angle =
+      (Math.PI * 2 * i) / count +
+      (Math.random() - 0.5) * 0.08;
+
+    const speed = Math.random() * 4.5 + 2;
+
+    const particleColor =
+      Math.random() > 0.25 ? color : secondColor;
+
+    particles.push(
+      new Particle(
+        x,
+        y,
+        particleColor,
+        angle,
+        speed
+      )
+    );
+  }
+
+  // 중앙 반짝임
+  for (let i = 0; i < 25; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 3 + 1;
+
+    particles.push(
+      new Particle(
+        x,
+        y,
+        "#ffffff",
+        angle,
+        speed
+      )
+    );
+  }
+
+  // 성능 보호
+  if (particles.length > 1800) {
+    particles.splice(0, particles.length - 1800);
+  }
+}
+
+// 밤하늘 별 그리기
+function drawStars(time) {
+  for (const star of stars) {
+    const twinkle =
+      Math.sin(time * 0.0015 + star.phase) * 0.2;
+
+    ctx.beginPath();
+
+    ctx.arc(
+      star.x,
+      star.y,
+      star.radius,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fillStyle =
+      `rgba(255,255,255,${Math.max(
+        0.1,
+        star.alpha + twinkle
+      )})`;
+
+    ctx.fill();
+  }
+}
+
+// 애니메이션 반복
+function animate(time) {
+  ctx.clearRect(0, 0, width, height);
+
+  drawStars(time);
+
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const particle = particles[i];
+
+    particle.update();
+    particle.draw();
+
+    if (particle.life <= 0) {
+      particles.splice(i, 1);
+    }
+  }
+
+  requestAnimationFrame(animate);
+}
+
+// 마우스 클릭과 휴대폰 터치
+canvas.addEventListener("pointerdown", function(e) {
+  explode(e.clientX, e.clientY);
+});
+
+// 제목 위를 눌러도 터지도록 전체 화면 처리
+document.addEventListener("pointerdown", function(e) {
+  if (e.target !== canvas) {
+    explode(e.clientX, e.clientY);
+  }
+});
+
+// 화면 크기 변경 대응
+window.addEventListener("resize", resizeCanvas);
+
+// 시작
+resizeCanvas();
+requestAnimationFrame(animate);
+
+// 첫 화면에서 환영 불꽃
+setTimeout(function() {
+  explode(width * 0.3, height * 0.48);
+  explode(width * 0.7, height * 0.42);
+}, 500);
+
+setTimeout(function() {
+  explode(width * 0.5, height * 0.58);
+}, 1000);
+
+</script>
+
+</body>
+</html>

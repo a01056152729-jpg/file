@@ -1,0 +1,356 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0">
+
+  <title>가위바위보 룰렛</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(145deg, #182848, #4b6cb7);
+      font-family: "Malgun Gothic", Arial, sans-serif;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 750px;
+      padding: 30px 15px;
+    }
+
+    h1 {
+      font-size: clamp(34px, 6vw, 56px);
+      margin: 0 0 15px;
+      color: #fde68a;
+    }
+
+    .description {
+      font-size: clamp(20px, 3vw, 28px);
+      margin-bottom: 20px;
+    }
+
+    /* 결과 표시 */
+    .result {
+      min-height: 90px;
+      font-size: clamp(38px, 7vw, 64px);
+      font-weight: 900;
+      color: #fde047;
+      margin: 15px 0 25px;
+      text-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    /* 원판 */
+    .wheel-area {
+      position: relative;
+      width: min(85vw, 440px);
+      height: min(85vw, 440px);
+      margin: 20px auto 35px;
+    }
+
+    .wheel {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 9px solid white;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+      background: conic-gradient(
+        from -60deg,
+        #f59e0b 0deg 120deg,
+        #ef4444 120deg 240deg,
+        #22c55e 240deg 360deg
+      );
+      transform: rotate(0deg);
+    }
+
+    /* 회전하는 글자들 */
+    .wheel-label {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform:
+        translate(-50%, -50%)
+        rotate(var(--angle))
+        translateY(calc(var(--radius) * -1))
+        rotate(calc(var(--angle) * -1));
+      font-size: clamp(28px, 6vw, 45px);
+      font-weight: 900;
+      color: #ffffff;
+      text-shadow: 2px 3px 6px rgba(0,0,0,0.45);
+      white-space: nowrap;
+    }
+
+    .scissors {
+      --angle: 0deg;
+      --radius: min(25vw, 125px);
+    }
+
+    .rock {
+      --angle: 120deg;
+      --radius: min(25vw, 125px);
+    }
+
+    .paper {
+      --angle: 240deg;
+      --radius: min(25vw, 125px);
+    }
+
+    /* 가운데 장식 */
+    .center-circle {
+      position: absolute;
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 7px solid #facc15;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 3px 12px rgba(0,0,0,0.35);
+    }
+
+    /* 위쪽 고정 화살표 */
+    .pointer {
+      position: absolute;
+      z-index: 10;
+      left: 50%;
+      top: -22px;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 25px solid transparent;
+      border-right: 25px solid transparent;
+      border-top: 52px solid #fde047;
+      filter: drop-shadow(0 4px 4px rgba(0,0,0,0.5));
+    }
+
+    .buttons {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 18px;
+      margin-top: 25px;
+    }
+
+    button {
+      min-width: 220px;
+      min-height: 85px;
+      border: none;
+      border-radius: 20px;
+      font-size: 30px;
+      font-weight: 900;
+      cursor: pointer;
+      padding: 18px 28px;
+      box-shadow: 0 7px 0 rgba(0,0,0,0.25);
+      transition: transform 0.15s;
+      touch-action: manipulation;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-3px);
+    }
+
+    button:active:not(:disabled) {
+      transform: translateY(4px);
+      box-shadow: 0 3px 0 rgba(0,0,0,0.25);
+    }
+
+    button:focus-visible {
+      outline: 5px solid white;
+      outline-offset: 5px;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    #spinBtn {
+      background: #facc15;
+      color: #1e293b;
+    }
+
+    #retryBtn {
+      background: #ffffff;
+      color: #1e3a8a;
+    }
+
+    .notice {
+      margin-top: 30px;
+      font-size: 19px;
+      color: #e2e8f0;
+    }
+
+    @media (max-width: 530px) {
+      .buttons {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      button {
+        width: 100%;
+        font-size: 28px;
+      }
+
+      .wheel {
+        border-width: 6px;
+      }
+
+      .center-circle {
+        width: 40px;
+        height: 40px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <main class="container">
+
+    <h1>🎯 가위바위보 룰렛</h1>
+
+    <p class="description">
+      버튼을 눌러 행운의 룰렛을 돌려보세요!
+    </p>
+
+    <div
+      class="result"
+      id="result"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true">
+      준비!
+    </div>
+
+    <div class="wheel-area">
+
+      <div class="pointer"></div>
+
+      <div class="wheel" id="wheel">
+
+        <div class="wheel-label scissors">
+          ✌️ 가위
+        </div>
+
+        <div class="wheel-label rock">
+          ✊ 바위
+        </div>
+
+        <div class="wheel-label paper">
+          ✋ 보
+        </div>
+
+        <div class="center-circle"></div>
+
+      </div>
+
+    </div>
+
+    <div class="buttons">
+
+      <button id="spinBtn" type="button">
+        🎲 돌리기
+      </button>
+
+      <button id="retryBtn" type="button">
+        🔄 다시 돌리기
+      </button>
+
+    </div>
+
+    <p class="notice">
+      가위 · 바위 · 보가 같은 확률로 선택됩니다.
+    </p>
+
+  </main>
+
+  <script>
+    const wheel = document.getElementById("wheel");
+    const result = document.getElementById("result");
+    const spinBtn = document.getElementById("spinBtn");
+    const retryBtn = document.getElementById("retryBtn");
+
+    const choices = [
+      "✌️ 가위",
+      "✊ 바위",
+      "✋ 보"
+    ];
+
+    let currentRotation = 0;
+    let spinning = false;
+
+    function spinWheel() {
+      if (spinning) return;
+
+      spinning = true;
+
+      spinBtn.disabled = true;
+      retryBtn.disabled = true;
+
+      result.textContent = "빙글빙글~";
+
+      // 세 가지 중 하나를 무작위로 선택
+      const selectedIndex = Math.floor(Math.random() * 3);
+
+      // 각 칸의 중심 각도
+      // 가위: 0도, 바위: 120도, 보: 240도
+      const targetAngles = [0, 240, 120];
+
+      // 현재 원판 각도
+      const currentAngle =
+        ((currentRotation % 360) + 360) % 360;
+
+      // 목표 각도로 회전
+      const targetAngle = targetAngles[selectedIndex];
+
+      let extraAngle =
+        (targetAngle - currentAngle + 360) % 360;
+
+      // 최소 6바퀴 이상 회전
+      const fullSpins = 6 + Math.floor(Math.random() * 3);
+
+      const totalRotation =
+        fullSpins * 360 + extraAngle;
+
+      currentRotation += totalRotation;
+
+      // 처음 빠르고 마지막에 천천히 감속
+      wheel.style.transition =
+        "transform 4s cubic-bezier(0.12, 0.75, 0.15, 1)";
+
+      wheel.style.transform =
+        `rotate(${currentRotation}deg)`;
+
+      // 원판이 멈춘 후 결과 표시
+      setTimeout(() => {
+        result.textContent = choices[selectedIndex] + "!";
+
+        spinning = false;
+
+        spinBtn.disabled = false;
+        retryBtn.disabled = false;
+      }, 4050);
+    }
+
+    spinBtn.addEventListener("click", spinWheel);
+    retryBtn.addEventListener("click", spinWheel);
+  </script>
+
+</body>
+</html>
